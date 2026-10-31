@@ -295,3 +295,82 @@ python -m http.server 8080      # 然后访问 http://127.0.0.1:8080
 ```bash
 allure generate reports/allure-results -o reports/allure-report-single --single-file --clean
 ```
+
+### 6.9 Jenkins 集成（可选）
+
+配置文件：[Jenkinsfile](Jenkinsfile)，与 GitHub Actions 的流水线等价。
+
+**什么时候用 Jenkins 而不是 Actions？**
+被测服务在内网/有 IP 白名单，GitHub 的托管 runner 访问不到时，必须在自己的机器上跑。
+
+#### 本地用 Docker 起一个 Jenkins
+
+```bash
+# 1. 先启动 Docker Desktop（托盘图标变绿）
+
+# 2. 运行 Jenkins（写成一行，避免 Windows 下换行符不兼容）
+#    ⚠️ 请在 PowerShell 或 CMD 中执行。
+#       如果用 Git Bash，需要加前缀 MSYS_NO_PATHCONV=1，
+#       否则 /var/run/docker.sock 会被 MSYS 改写成 Windows 路径导致挂载失败。
+docker run -d --name jenkins -p 8080:8080 -p 50000:50000 --user root -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock -e JAVA_OPTS="-Duser.timezone=Asia/Shanghai" jenkins/jenkins:lts
+
+# 3. 取初始管理员密码
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+浏览器打开 http://127.0.0.1:8080 ，输入密码，安装插件。
+
+#### 为什么需要自定义镜像
+
+官方 `jenkins/jenkins:lts` 镜像里**没有 python3，也没有 docker 命令**，
+而 [Jenkinsfile](Jenkinsfile) 用 `agent { docker { image 'python:3.12' } }` 启动测试容器，
+所以直接用官方镜像会在构建第一步报 `docker: command not found`。
+
+[Dockerfile.jenkins](Dockerfile.jenkins) 在官方镜像基础上补了 python3 + docker CLI：
+
+```bash
+# 构建（首次约 3~10 分钟，取决于网络）
+docker build -f Dockerfile.jenkins -t jenkins-python:lts .
+
+# 用新镜像重建容器（jenkins_home 数据卷保留，账号和插件不会丢）
+docker rm -f jenkins
+docker run -d --name jenkins -p 8080:8080 -p 50000:50000 --user root -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock -e JAVA_OPTS="-Duser.timezone=Asia/Shanghai" jenkins-python:lts
+```
+
+#### 必须安装的插件
+
+| 插件 | 用途 |
+|---|---|
+| Pipeline | 解析 Jenkinsfile |
+| Git | 拉取仓库 |
+| **Allure Jenkins Plugin** | 展示 allure 报告 |
+| Docker Pipeline | `agent { docker { ... } }` 需要 |
+| Timestamper | 日志加时间戳 |
+
+#### 配置 Allure 工具
+
+`Manage Jenkins → Tools → Allure Commandline` → Add → 起名 `allure`，勾选自动安装。
+（不配的话 `post` 里的 `allure` 步骤会报错，可改用注释里的 `publishHTML`。）
+
+#### 创建任务
+
+1. New Item → 输入名称 → 选 **Pipeline** → OK
+2. Pipeline 区选 **Pipeline script from SCM**
+3. SCM 选 **Git**，填仓库 URL（私有仓库需先加凭据）
+4. Script Path 填 `Jenkinsfile`
+5. 保存 → 点 **Build with Parameters**，选环境（dev/test/prod）后构建
+
+构建完成后，左侧会出现 **Allure Report** 菜单，直接点开就能看，不需要额外起服务。
+
+#### 与 GitHub Actions 的关系
+
+两者可以并存，互不冲突：
+
+| | GitHub Actions | Jenkins |
+|---|---|---|
+| 谁维护机器 | GitHub | 你自己 |
+| 能否访问内网服务 | ❌（除非开公网/白名单） | ✅ |
+| 上手成本 | 低，推代码即用 | 中，要装要配 |
+| 报告查看 | 下载 artifact | 构建页面直接看 |
+
+常见做法：**Actions 跑冒烟做快速反馈，Jenkins 跑全量回归并负责内网环境**。

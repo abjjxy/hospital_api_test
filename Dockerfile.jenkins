@@ -1,0 +1,49 @@
+# Dockerfile.jenkins
+# ==========================================================================
+# 在官方 Jenkins 镜像基础上补齐两样东西：
+#   1. python3 —— 让流水线能在本机直接跑 pytest
+#   2. docker CLI —— 让 Jenkinsfile 里的 agent { docker { image 'python:3.12' } }
+#      能通过挂载进来的 /var/run/docker.sock 启动测试容器
+#
+# 构建：docker build -f Dockerfile.jenkins -t jenkins-python:lts .
+# 运行：见 README 6.9 节
+# ==========================================================================
+FROM jenkins/jenkins:lts
+
+USER root
+
+# Debian 源换成清华镜像（国内直连 deb.debian.org 通常非常慢）
+# 同时兼容老版 sources.list 和新版 deb822 格式的 debian.sources
+RUN set -eux; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
+        if [ -f "$f" ]; then \
+            sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' "$f"; \
+        fi; \
+    done
+
+# python3      : 跑 pytest
+# python3-venv : 需要虚拟环境时用
+# python3-pip  : 装依赖
+# docker-cli   : 只装「客户端」，提供 /usr/bin/docker
+#
+# 注意：这里刻意不装 docker.io（守护进程）。
+#   1. 我们用的是宿主机通过 /var/run/docker.sock 暴露的 daemon，
+#      容器里再跑一个 daemon 既没必要也会冲突；
+#   2. docker.io 会连带 containerd / runc / iptables 等上百 MB 依赖，
+#      构建又慢又容易断；
+#   3. Debian 13(trixie) 起 docker.io 与 docker-cli 存在 Breaks 关系，二者不能共存。
+RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+ && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        docker-cli \
+ && rm -rf /var/lib/apt/lists/*
+
+# 构建期自检：两个命令都必须可用，否则直接让构建失败
+RUN python3 --version && docker --version
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+USER jenkins

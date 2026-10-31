@@ -94,6 +94,13 @@ jobs:
   #   ① 仓库 Settings → Pages → Source 选 "GitHub Actions"
   #   ② 仓库必须是 public（免费账号的私有仓库不支持 Pages）
   #   ③ 只有推送到 main 分支才会执行（见下面的 if 条件）
+  #
+  # ⚠️ 注意：本 job 失败后不要用 "Re-run failed jobs" 重跑。
+  #    upload-pages-artifact 会生成固定名为 github-pages 的 artifact，
+  #    deploy-pages 要求「同一次 run 里该 artifact 只能有一个」；
+  #    重跑会再上传一个同名 artifact → 报
+  #    "Multiple artifacts named github-pages were unexpectedly found"。
+  #    正确做法：用 Actions 页面的 "Run workflow" 触发一次全新运行。
   deploy-report:
     needs: api-test                              # api-test 失败则不发布
     if: github.ref == 'refs/heads/main'

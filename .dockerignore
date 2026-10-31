@@ -1,0 +1,12 @@
+# 构建 Jenkins 镜像时不需要把这些发给 Docker 守护进程
+.git
+.pytest_cache
+**/__pycache__
+**/*.pyc
+reports
+allure-report
+allure-results
+.venv
+venv
+.idea
+.vscode
