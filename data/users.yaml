@@ -1,0 +1,20 @@
+# data/users.yaml
+# 账号数据集（当前用例未强依赖，留作数据驱动练习）
+# 用法：
+#   from common.data_loader import load_yaml
+#   users = load_yaml("users.yaml")
+#   @pytest.mark.parametrize("user", users["accounts"].values(), ids=users["accounts"].keys())
+
+accounts:
+  admin:
+    username: admin
+    password: admin123456
+    role: 管理员
+  doctor:
+    username: TODO_DOCTOR_USER      # TODO 补充医生账号
+    password: TODO_DOCTOR_PWD
+    role: 医生
+  operator:
+    username: TODO_OPERATOR_USER    # TODO 补充操作员账号
+    password: TODO_OPERATOR_PWD
+    role: 操作员

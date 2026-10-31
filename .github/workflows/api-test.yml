@@ -1,0 +1,111 @@
+# .github/workflows/api-test.yml
+# ==========================================================================
+# GitHub Actions 流水线：提交代码后自动执行接口测试，并留存 allure 报告
+#
+# 学习要点（对应 CI/CD 的五个环节）：
+#   ① 触发器  on:        —— 什么时候跑
+#   ② 环境    jobs.*.runs-on / setup-python —— 在什么机器上跑
+#   ③ 执行    run:       —— 跑什么命令
+#   ④ 产物    upload-artifact —— 跑完留下什么
+#   ⑤ 门禁    仓库 Settings → Branches → Require status checks —— 红灯不许合并
+# ==========================================================================
+name: API Test
+
+# ① 触发器
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 18 * * *'   # UTC 18:00 = 北京时间次日 02:00，每天定时回归
+  workflow_dispatch:        # 允许在仓库网页上手动点「Run workflow」
+
+# 同一个分支的新提交会取消上一次还没跑完的流水线，避免浪费
+concurrency:
+  group: api-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-test:
+    # ② 环境：GitHub 免费提供的干净 Ubuntu 机器，每次都是全新系统
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'                        # 缓存 pip 下载，第二次起快很多
+          cache-dependency-path: requirements.txt
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ③ 执行任务：这一步失败，整个 job 就失败（= 红灯）
+      #    想只跑冒烟可改成: pytest --env=dev -m smoke
+      - name: 执行接口测试
+        run: pytest --env=dev
+
+      # ④ 产物：注意 if: always() —— 测试失败时也要出报告，否则看不到失败现场
+      - name: 安装 allure 命令行
+        if: always()
+        continue-on-error: true               # 报告环节出问题不应该掩盖测试结果
+        run: sudo npm install -g allure-commandline
+
+      - name: 生成 allure HTML 报告
+        if: always()
+        continue-on-error: true
+        run: allure generate reports/allure-results -o reports/allure-report --clean
+
+      - name: 上传 allure 报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: |
+            reports/allure-results
+            reports/allure-report
+          retention-days: 7
+
+      - name: 上传运行日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: reports/logs
+          retention-days: 7
+
+  # ========================================================================
+  # 扩展位：CD（持续交付）
+  # ------------------------------------------------------------------------
+  # 接口测试项目通常没有「部署物」，CD 体现在：
+  #   1. 测试通过后自动触发下游部署（needs: api-test）
+  #   2. 把测试报告发布到 GitHub Pages / 内部文档站
+  #
+  # 示例（取消注释并填好 secrets 后可用）：
+  #
+  # deploy-report:
+  #   needs: api-test
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     pages: write
+  #     id-token: write
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: allure-report
+  #         path: public
+  #     - uses: actions/upload-pages-artifact@v3
+  #       with:
+  #         path: public/allure-report
+  #     - uses: actions/deploy-pages@v4
+  # ========================================================================

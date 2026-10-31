@@ -1,0 +1,15 @@
+# ---------- 核心 ----------
+pytest>=8.4.0                 # 8.4+ 支持 @pytest.hookimpl(wrapper=True)
+requests>=2.31.0
+allure-pytest>=2.13.2
+allure-python-commons>=2.13.2
+
+# ---------- 数据 ----------
+PyYAML>=6.0.1
+
+# ---------- 执行增强 ----------
+pytest-xdist>=3.5.0           # 并行执行 -n auto
+pytest-rerunfailures>=13.0    # 失败重跑 --reruns N
+pytest-timeout>=2.3.0         # 超时保护 --timeout=60
+pytest-cov>=5.0.0             # 覆盖率 --cov
+pytest-html>=4.1.0            # 简易 HTML 报告（allure 的备用方案）

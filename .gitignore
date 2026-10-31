@@ -1,0 +1,27 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+
+# ---------- pytest ----------
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ---------- 测试产物（CI 里用 artifact 保存，不入库） ----------
+reports/
+
+# ---------- 本地敏感配置 ----------
+.env
+*.local.ini
+
+# ---------- 编辑器 / 系统 ----------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
