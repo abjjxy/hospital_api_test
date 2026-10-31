@@ -265,3 +265,33 @@ git push -u origin main
 
 1. **测试数据污染**：用例会在服务端真实创建挂号单。CI 每天定时跑，数据会不断累积。上线前应改用独立测试环境，或在 teardown 中调用删除接口清理。
 2. **保持基线为绿**：已知的服务端缺陷用 `@pytest.mark.xfail` 记录（见 [data/booking_data.csv](data/booking_data.csv) 的 `mark` 列），不要让它长期让流水线变红 —— 否则「红灯」就失去信号价值了。
+
+### 6.8 常见问题
+
+**Q：从 Actions 下载 allure 报告，双击 `index.html` 打开显示 `500 Failed to fetch`？**
+
+A：这是**用 `file://` 协议打开**导致的，不是报告坏了。
+
+Allure 报告是纯前端页面，启动时要用 JS `fetch` 读取同目录下的 `data/*.json`；
+浏览器出于安全策略禁止 `file://` 页面发起这种请求，fetch 失败后 allure 前端统一显示成
+`500 Failed to fetch`（这个 500 是前端写死的文案，跟服务端无关）。
+
+正确打开方式（任选其一）：
+
+```bash
+# 1. 起本地静态服务器后自动打开浏览器（推荐）
+allure open "报告目录路径"
+
+# 2. 直接从原始结果生成并打开
+allure serve reports/allure-results
+
+# 3. 用任意静态服务器
+cd 报告目录
+python -m http.server 8080      # 然后访问 http://127.0.0.1:8080
+```
+
+**想双击就能看**？生成单文件版本，数据全部内联到 HTML 里：
+
+```bash
+allure generate reports/allure-results -o reports/allure-report-single --single-file --clean
+```

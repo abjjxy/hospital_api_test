@@ -89,23 +89,35 @@ jobs:
   #   1. 测试通过后自动触发下游部署（needs: api-test）
   #   2. 把测试报告发布到 GitHub Pages / 内部文档站
   #
-  # 示例（取消注释并填好 secrets 后可用）：
-  #
-  # deploy-report:
-  #   needs: api-test
-  #   if: github.ref == 'refs/heads/main'
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     pages: write
-  #     id-token: write
-  #   steps:
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: allure-report
-  #         path: public
-  #     - uses: actions/upload-pages-artifact@v3
-  #       with:
-  #         path: public/allure-report
-  #     - uses: actions/deploy-pages@v4
+  # 下面这个 job 把 allure HTML 报告发布到 GitHub Pages，得到一个长期可访问的网址。
+  # 前置条件（三者缺一不可）：
+  #   ① 仓库 Settings → Pages → Source 选 "GitHub Actions"
+  #   ② 仓库必须是 public（免费账号的私有仓库不支持 Pages）
+  #   ③ 只有推送到 main 分支才会执行（见下面的 if 条件）
+  deploy-report:
+    needs: api-test                              # api-test 失败则不发布
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 下载测试报告 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-report
+          path: public
+
+      - name: 打包为 Pages 站点
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public/allure-report          # 该目录下必须有 index.html
+
+      - name: 发布到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
   # ========================================================================
