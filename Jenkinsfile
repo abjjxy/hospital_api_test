@@ -72,7 +72,8 @@ pipeline {
         stage('执行接口测试') {
             steps {
                 script {
-                    def args = "--env=${params.ENV} --junitxml=reports/junit.xml"
+                    // pytest-html 生成单文件 HTML 报告（数据内联，不依赖 Allure CLI / JDK）
+                    def args = "--env=${params.ENV} --junitxml=reports/junit.xml --html=reports/pytest-report.html --self-contained-html"
 
                     if (params.MARKER?.trim()) {
                         args += " -m '${params.MARKER.trim()}'"
@@ -97,16 +98,22 @@ pipeline {
             // JUnit 报告：Jenkins 内置支持，构建页面会显示失败用例趋势图
             junit testResults: 'reports/junit.xml', allowEmptyResults: true
 
-            // Allure 报告：需要安装 Allure Jenkins Plugin，
-            // 并在「Manage Jenkins → Tools → Allure Commandline」里配置一个工具实例
-            allure includeProperties: false, jdk: '', results: [[path: 'reports/allure-results']]
+            // pytest-html 报告：只用 Jenkins 内置的 HTML Publisher，不需要额外插件。
+            // 构建页左侧会出现「Pytest Report」入口。
+            publishHTML(target: [
+                reportDir: 'reports',
+                reportFiles: 'pytest-report.html',
+                reportName: 'Pytest Report',
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                allowMissing: true,
+            ])
 
-            // 备用方案：没装 Allure 插件时，用 HTML Publisher 也能看
-            // publishHTML(target: [
-            //     reportDir: 'reports/allure-report',
-            //     reportFiles: 'index.html',
-            //     reportName: 'Allure Report'
-            // ])
+            // Allure 报告：需要先安装 Allure Jenkins Plugin，并在
+            // 「Manage Jenkins → Tools → Allure Commandline」里配置一个工具实例。
+            // 插件未安装时调用它会报 No such DSL method 'allure' 并让构建变红，
+            // 所以默认注释；装好插件后取消注释即可（可与上面的 publishHTML 并存）。
+            allure includeProperties: false, jdk: '', results: [[path: 'reports/allure-results']]
 
             // 归档原始产物，随时可下载
             archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
@@ -117,7 +124,7 @@ pipeline {
         }
 
         failure {
-            echo '❌ 存在失败用例，请查看 Allure 报告'
+            echo '❌ 构建失败：请查看 Console Output 与测试报告'
             // TODO 需要告警时在这里加企业微信 / 钉钉机器人推送
             // sh 'curl -s -X POST "$WEBHOOK_URL" -H "Content-Type: application/json" -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"接口测试失败: $BUILD_URL\"}}"'
         }

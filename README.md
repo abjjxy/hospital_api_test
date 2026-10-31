@@ -333,8 +333,12 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 docker build -f Dockerfile.jenkins -t jenkins-python:lts .
 
 # 用新镜像重建容器（jenkins_home 数据卷保留，账号和插件不会丢）
+# ⚠️ Git Bash 执行时必须加 MSYS_NO_PATHCONV=1，否则 /var/run/docker.sock
+#    会被改写成 Windows 路径（如 D:/git/Git/var/run/docker.sock），
+#    导致容器里没有 socket，流水线报 "Cannot connect to the Docker daemon"。
+#    PowerShell / CMD 无此问题。
 docker rm -f jenkins
-docker run -d --name jenkins -p 8080:8080 -p 50000:50000 --user root -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock -e JAVA_OPTS="-Duser.timezone=Asia/Shanghai" jenkins-python:lts
+MSYS_NO_PATHCONV=1 docker run -d --name jenkins -p 8080:8080 -p 50000:50000 --user root --restart unless-stopped -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock -e JAVA_OPTS="-Duser.timezone=Asia/Shanghai" jenkins-python:lts
 ```
 
 #### 必须安装的插件
